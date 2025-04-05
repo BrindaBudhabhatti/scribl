@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Scribl ✍️</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #1f1f1f, #2b2b2b);
+      color: white;
+      transition: background 0.3s;
+    }
+
+    canvas {
+      display: block;
+      background: transparent;
+      cursor: crosshair;
+    }
+
+    .toolbar {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+      padding: 10px 20px;
+      border-radius: 15px;
+      box-shadow: 0 0 10px rgba(255,255,255,0.1);
+      z-index: 999;
+    }
+
+    .toolbar button, .toolbar select {
+      background: #111;
+      border: none;
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: transform 0.2s, background 0.3s;
+    }
+
+    .toolbar button:hover {
+      background: #222;
+      transform: scale(1.05);
+    }
+
+    .toolbar button:active {
+      transform: scale(0.95);
+    }
+
+    .light-mode {
+      background: linear-gradient(135deg, #f0f0f0, #ffffff);
+      color: #000;
+    }
+
+    .light-mode .toolbar {
+      background: rgba(255, 255, 255, 0.4);
+    }
+
+    .light-mode .toolbar button, 
+    .light-mode .toolbar select {
+      background: #eee;
+      color: #000;
+    }
+
+    .tooltip {
+      position: relative;
+    }
+
+    .tooltip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: -24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: white;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 5px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .tooltip:hover::after {
+      opacity: 1;
+    }
+
+    .icon {
+      font-size: 16px;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div class="toolbar">
+    <select id="size">
+      <option value="2">Thin</option>
+      <option value="5" selected>Medium</option>
+      <option value="10">Thick</option>
+    </select>
+    <button class="tooltip" data-tooltip="Undo" onclick="undo()">
+      ⎌ Undo
+    </button>
+    <button class="tooltip" data-tooltip="Save" onclick="saveDrawing()">
+      💾 Save
+    </button>
+    <button class="tooltip" data-tooltip="Clear" onclick="clearCanvas()">
+      🧹 Clear
+    </button>
+    <button class="tooltip" data-tooltip="Toggle Theme" onclick="toggleTheme()">
+      ☀️ Light
+    </button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    let drawing = false;
+    let paths = [];
+    let currentPath = [];
+    let isDark = true;
+
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    const startDraw = (x, y) => {
+      drawing = true;
+      currentPath = [{ x, y }];
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    };
+
+    const draw = (x, y) => {
+      if (!drawing) return;
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      currentPath.push({ x, y });
+    };
+
+    const stopDraw = () => {
+      if (!drawing) return;
+      drawing = false;
+      paths.push({ path: currentPath.slice(), size: ctx.lineWidth, color: ctx.strokeStyle });
+    };
+
+    canvas.addEventListener("mousedown", e => startDraw(e.clientX, e.clientY));
+    canvas.addEventListener("mousemove", e => draw(e.clientX, e.clientY));
+    canvas.addEventListener("mouseup", stopDraw);
+    canvas.addEventListener("mouseout", stopDraw);
+
+    canvas.addEventListener("touchstart", e => {
+      const t = e.touches[0];
+      startDraw(t.clientX, t.clientY);
+    });
+    canvas.addEventListener("touchmove", e => {
+      const t = e.touches[0];
+      draw(t.clientX, t.clientY);
+    });
+    canvas.addEventListener("touchend", stopDraw);
+
+    document.getElementById("size").addEventListener("change", e => {
+      ctx.lineWidth = parseInt(e.target.value);
+    });
+
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#fff";
+
+    function undo() {
+      paths.pop();
+      redraw();
+    }
+
+    function clearCanvas() {
+      paths = [];
+      redraw();
+    }
+
+    function saveDrawing() {
+      const link = document.createElement('a');
+      link.download = 'scribl-drawing.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+
+    function redraw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let p of paths) {
+        ctx.beginPath();
+        ctx.lineWidth = p.size;
+        ctx.strokeStyle = p.color;
+        ctx.moveTo(p.path[0].x, p.path[0].y);
+        for (let i = 1; i < p.path.length; i++) {
+          ctx.lineTo(p.path[i].x, p.path[i].y);
+        }
+        ctx.stroke();
+      }
+    }
+
+    function toggleTheme() {
+      isDark = !isDark;
+      document.body.classList.toggle("light-mode", !isDark);
+    }
+  </script>
+</body>
+</html>
